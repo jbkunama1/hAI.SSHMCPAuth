@@ -2,187 +2,98 @@
 
 Auth-layered MCP SSH gateway for secure agent access into your LAN.
 
-This repo provides:
+This repository provides:
 
-- A Portainer-ready Docker Compose stack with:
-  - `sshmcp-core`: the original `mingyang91/ssh-mcp` MCP SSH server
-  - `sshmcp-auth`: a lightweight Node.js HTTP proxy that enforces an API key before forwarding to `sshmcp-core`
-- A small `auth-proxy.js` implementation that checks `Authorization: Bearer <API_KEY>` and only then proxies the request to the MCP server
-- A Docker image for the auth proxy, built and published via GitHub Actions to GitHub Container Registry (`ghcr.io/<owner>/hai.sshmcpauth:latest`)
+- `sshmcp-core`: the upstream `mingyang91/ssh-mcp` MCP SSH server.
+- `sshmcp-auth`: a lightweight Node.js API-key layer in front of the MCP server.
+- A Dockerfile for the auth layer.
+- A GitHub Actions workflow that builds and publishes the auth image to GHCR.
+- A Portainer-ready stack using the published GHCR image.
 
-The goal: allow AI agents (Claude, ChatGPT, Copilot, AnythingMCP, etc.) to reach your LAN via MCP+SSH, while enforcing an application-level API key directly in the container stack.
+The intended request path is:
 
-> NOTE: This is a simple, educational example. For production, combine this pattern with proper network isolation (VPN, firewalls) and SSH key authentication.
+```text
+MCP client / AnythingMCP
+        |
+        |  HTTP MCP + Authorization: Bearer <API key>
+        v
+sshmcp-auth :8822
+        |
+        |  internal Docker network
+        v
+sshmcp-core :8000
+        |
+        |  SSH
+        v
+LAN servers
+```
 
-## Architecture
-
-Overview:
-
-- Incoming HTTP/MCP traffic hits `sshmcp-auth` on port `8822` (or another port you choose)
-- `sshmcp-auth` verifies that the `Authorization` header matches your configured API key
-- If valid, the request is forwarded to `sshmcp-core` on its internal port `8000`
-- `sshmcp-core` runs `mingyang91/ssh-mcp` and handles MCP/SSH tool calls into your LAN machines
-
-All components run inside one Docker stack; no external reverse proxy is required.
+> Security notice: This project is an access gateway to SSH-capable systems. Use it only in a trusted network or behind a VPN/tunnel with HTTPS. Use dedicated, least-privileged SSH accounts and preferably SSH keys instead of passwords.
 
 ## Requirements
 
-- Host system with Docker and Docker Compose (or Portainer)
-- A custom Docker network (e.g. `highfishNetwork`) if you want to integrate with other containers
-- Node.js image is pulled automatically as part of the stack (`node:18-alpine`)
+- Docker and Docker Compose, or Portainer.
+- A Docker network named `highfishNetwork`, or a different external network name configured in the stack.
+- A host that can reach the target LAN servers via SSH.
+- An upstream-compatible `mingyang91/ssh-mcp` deployment exposing its MCP HTTP endpoint on port `8000` inside the Docker network.
 
-## Files
-
-- `docker-compose.yml` — the stack definition
-- `auth/auth-proxy.js` — Node.js HTTP auth/proxy layer
-- `Dockerfile` — container definition for the auth proxy
-- `.github/workflows/docker-image.yml` — GitHub Actions workflow to build/push the image
-
-## Installation (Stack-Variante)
-
-### 1. Clone the repo
-
-```bash
-git clone https://github.com/jbkunama1/hAI.SSHMCPAuth.git
-cd hAI.SSHMCPAuth
-```
-
-### 2. Prepare host directories
-
-Create a host directory for SSHMCP data and the auth script. You can change paths if needed.
-
-```bash
-mkdir -p /home/sshmcp/auth
-cp auth/auth-proxy.js /home/sshmcp/auth/
-```
-
-By default, the compose file mounts `/home/sshmcp` into `sshmcp-core` as `/data` and `/home/sshmcp/auth` into `sshmcp-auth` as `/auth`.
-
-### 3. Set your API key
-
-Generate a strong random API key and keep it secret:
-
-```bash
-openssl rand -hex 32
-# copy the output
-```
-
-Open `docker-compose.yml` and set:
-
-```yaml
-environment:
-  SSHMCP_API_KEY: "DEIN_STARKER_API_KEY"
-```
-
-Replace `DEIN_STARKER_API_KEY` with your generated value.
-
-### 4. Adjust network and ports (optional)
-
-In `docker-compose.yml`, you can:
-
-- Change the external port mapping from `8822:8822` to another port
-- Change the external network name from `highfishNetwork` to your own network
-
-Example:
-
-```yaml
-services:
-  sshmcp-auth:
-    ports:
-      - "8822:8822"
-
-networks:
-  highfishNetwork:
-    external: true
-```
-
-If you do not have an external network yet, create one:
+Create the external network if it does not exist:
 
 ```bash
 docker network create highfishNetwork
 ```
 
-### 5. Start the stack
+## GHCR image
 
-Using Docker Compose:
+The auth-layer image is published by GitHub Actions as:
+
+```text
+ghcr.io/jbkunama1/hai.sshmcpauth:latest
+```
+
+The image contains `auth/auth-proxy.js`; the script is copied into the image at build time and starts automatically as the container command. The API key is deliberately not built into the image. It must be supplied at runtime.
+
+The workflow is located at `.github/workflows/docker-image.yml`. It builds on pushes to `main` and can also be started manually with `workflow_dispatch`.
+
+## Portainer installation using GHCR
+
+### 1. Pull permissions
+
+If the GHCR package is public, no registry login is normally required. If the package is private, log in on the Docker host with a GitHub token that has package read permission:
 
 ```bash
-docker compose up -d
+echo "$CR_PAT" | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
 ```
 
-Using Portainer:
+Do not put the token into the stack or commit it to Git.
 
-- Go to *Stacks*
-- Create new stack
-- Paste the contents of `docker-compose.yml`
-- Deploy the stack
+### 2. Create the stack
 
-### 6. Configure your MCP client (e.g. AnythingMCP)
+In Portainer:
 
-Point your MCP client or gateway at the auth layer, and send the API key as a header.
-
-Example configuration snippet:
-
-```json
-{
-  "mcpServers": {
-    "ssh-lan": {
-      "name": "SSH MCP LAN",
-      "type": "streamable",
-      "url": "http://192.168.178.10:8822/mcp",
-      "enabled": true,
-      "headers": {
-        "Authorization": "Bearer DEIN_STARKER_API_KEY"
-      }
-    }
-  }
-}
-```
-
-### 7. Use MCP tools from your agent
-
-Once connected, your agent can call the MCP tools exposed by `ssh-mcp`, such as:
-
-- `ssh_connect` — establish SSH connection to a LAN host
-- `ssh_execute` — run commands on the remote host
-- `ssh_upload` / `ssh_download` — transfer files
-
-Refer to the upstream `ssh-mcp` documentation for the exact tool names and parameters.
-
-## Docker-Image-Variante (GitHub Actions)
-
-Statt den Auth-Layer aus `node:18-alpine` + Volume aufzubauen, kannst du das vorbereitete Docker-Image nutzen.
-
-### 1. GitHub Actions Workflow
-
-Der Workflow `.github/workflows/docker-image.yml`:
-
-- läuft bei Push auf `main` oder manuellem Trigger
-- baut das Image aus `Dockerfile`
-- pusht es nach GitHub Container Registry unter:
-  - `ghcr.io/<owner>/hai.sshmcpauth:latest`
-
-### 2. Image lokal nutzen
-
-Nach dem ersten erfolgreichen Build:
-
-```bash
-docker pull ghcr.io/jbkunama1/hai.sshmcpauth:latest
-
-docker run -d \
-  --name sshmcp-auth \
-  --network highfishNetwork \
-  -e SSHMCP_API_KEY="DEIN_STARKER_API_KEY" \
-  -e SSHMCP_TARGET_HOST="sshmcp-core" \
-  -e SSHMCP_TARGET_PORT="8000" \
-  -e SSHMCP_LISTEN_PORT="8822" \
-  -p 8822:8822 \
-  ghcr.io/jbkunama1/hai.sshmcpauth:latest
-```
-
-In deiner Compose-Datei kannst du den Service `sshmcp-auth` alternativ so definieren:
+1. Open **Stacks**.
+2. Select **Add stack**.
+3. Give it a name, for example `sshmcp-auth`.
+4. Paste the following Compose file.
+5. Replace `CHANGE_ME_WITH_A_LONG_RANDOM_API_KEY`.
+6. Deploy the stack.
 
 ```yaml
+services:
+  sshmcp-core:
+    image: mingyang91/ssh-mcp:latest
+    container_name: sshmcp-core
+    restart: unless-stopped
+    networks:
+      - highfishNetwork
+    expose:
+      - "8000"
+    volumes:
+      - /home/sshmcp:/data
+    environment:
+      RUST_LOG: "info"
+      MCP_PORT: "8000"
+
   sshmcp-auth:
     image: ghcr.io/jbkunama1/hai.sshmcpauth:latest
     container_name: sshmcp-auth
@@ -192,21 +103,121 @@ In deiner Compose-Datei kannst du den Service `sshmcp-auth` alternativ so defini
     ports:
       - "8822:8822"
     environment:
-      SSHMCP_API_KEY: "DEIN_STARKER_API_KEY"
+      SSHMCP_API_KEY: "CHANGE_ME_WITH_A_LONG_RANDOM_API_KEY"
       SSHMCP_TARGET_HOST: "sshmcp-core"
       SSHMCP_TARGET_PORT: "8000"
       SSHMCP_LISTEN_PORT: "8822"
+
+networks:
+  highfishNetwork:
+    external: true
 ```
 
-Damit brauchst du das Volume `/home/sshmcp/auth` nicht mehr – das Skript ist bereits im Image enthalten.
+The core service is not published to the host. Only `sshmcp-auth` exposes port `8822`. The auth container forwards authenticated requests to `sshmcp-core:8000` over `highfishNetwork`.
 
-## Security Notes
+### 3. Generate an API key
 
-- This pattern enforces an API key at the HTTP/MCP boundary, but you should **also**:
-  - Use SSH keys instead of passwords for your LAN servers
-  - Limit which commands are allowed on remote hosts
-  - Restrict network access to the `sshmcp-auth` port (e.g. via firewall or VPN)
-- Do not hard-code production secrets into the repo. Always inject secrets via environment variables.
+Generate a strong key on the Docker host:
+
+```bash
+openssl rand -hex 32
+```
+
+Put the result into `SSHMCP_API_KEY` in Portainer. Do not use the example value in production. If you change the key, redeploy the stack.
+
+### 4. Check the containers
+
+```bash
+docker ps --filter name=sshmcp
+
+docker logs --tail=100 sshmcp-auth
+```
+
+The auth container should report that it is listening on port `8822`. The core container must be reachable by the service name `sshmcp-core` on the shared Docker network.
+
+## Environment variables
+
+### `sshmcp-auth`
+
+| Variable | Required | Default | Description |
+|---|---:|---|---|
+| `SSHMCP_API_KEY` | yes | none | Secret expected in the HTTP header `Authorization: Bearer <value>`. The container exits if it is missing. |
+| `SSHMCP_TARGET_HOST` | no | `sshmcp-core` | Docker DNS name or hostname of the upstream MCP server. |
+| `SSHMCP_TARGET_PORT` | no | `8000` | TCP port of the upstream MCP server inside the Docker network. |
+| `SSHMCP_LISTEN_PORT` | no | `8822` | Port on which the auth layer listens inside the container. |
+
+### `sshmcp-core`
+
+| Variable | Default | Description |
+|---|---|---|
+| `RUST_LOG` | `info` | Logging level for the upstream Rust application. |
+| `MCP_PORT` | `8000` | Internal MCP port used by the upstream server. Verify this against the upstream image version you deploy. |
+
+The API key must not be placed in the Dockerfile, GitHub Actions workflow, or a public repository. Supply it only as a Portainer secret/environment value at deployment time.
+
+## MCP client configuration
+
+Configure AnythingMCP or another compatible MCP client to use the auth layer, not the core service:
+
+```json
+{
+  "mcpServers": {
+    "ssh-lan": {
+      "name": "SSH MCP LAN",
+      "type": "streamable",
+      "url": "https://sshmcp.arbeitermili.eu/mcp",
+      "enabled": true,
+      "headers": {
+        "Authorization": "Bearer CHANGE_ME_WITH_A_LONG_RANDOM_API_KEY"
+      }
+    }
+  }
+}
+```
+
+For a direct LAN test without HTTPS, use:
+
+```text
+http://192.168.178.10:8822/mcp
+```
+
+For production, prefer HTTPS through your tunnel and ensure that the API key is transmitted only over an encrypted connection.
+
+## How authentication works
+
+The auth layer compares the incoming `Authorization` header to:
+
+```text
+Bearer <value of SSHMCP_API_KEY>
+```
+
+Requests with a missing or incorrect header receive HTTP `401 Unauthorized`. Requests with a matching header are streamed to the configured upstream host and port. The layer does not perform SSH authentication itself; the upstream MCP SSH server handles the SSH connection to the selected LAN host.
+
+## Build locally
+
+```bash
+docker build -t hai-sshmcpauth:local .
+
+docker run --rm \
+  -p 8822:8822 \
+  -e SSHMCP_API_KEY="CHANGE_ME_WITH_A_LONG_RANDOM_API_KEY" \
+  -e SSHMCP_TARGET_HOST="sshmcp-core" \
+  -e SSHMCP_TARGET_PORT="8000" \
+  -e SSHMCP_LISTEN_PORT="8822" \
+  hai-sshmcpauth:local
+```
+
+## Security recommendations
+
+- Do not expose port `8000` from `sshmcp-core`.
+- Restrict access to port `8822` with a firewall, VPN, or private tunnel.
+- Use HTTPS for any access outside the LAN.
+- Use separate, least-privileged SSH accounts on target servers.
+- Prefer SSH key authentication over reusable passwords.
+- Do not allow root login for the SSH accounts used by agents.
+- Restrict allowed commands at the SSH/MCP layer where supported.
+- Rotate the MCP API key if it is ever exposed.
+- Review container and upstream image updates before deploying `latest` in production; pin tested image tags or digests where practical.
 
 ## License
 
