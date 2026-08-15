@@ -34,6 +34,11 @@ services:
     ports:
       - "8822:8822"   # external:internal
 
+    # Alias registry (plaintext SSH credentials) - bind-mount from the host.
+    # Keep real credentials out of git; create data/ssh_aliases.json from the sample.
+    volumes:
+      - ./data:/data:ro
+
     environment:
       # Strong API key, set to your own random value
       SSHMCP_API_KEY: "CHANGE_ME_WITH_A_LONG_RANDOM_API_KEY"
@@ -44,6 +49,9 @@ services:
 
       # Port on which the auth proxy listens inside the container
       SSHMCP_LISTEN_PORT: "8822"
+
+      # Alias registry file with SSH credentials (plaintext for now)
+      SSHMCP_ALIASES_FILE: "/data/ssh_aliases.json"
 
 networks:
   highfishNetwork:
