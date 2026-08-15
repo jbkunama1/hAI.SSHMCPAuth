@@ -41,22 +41,24 @@ services:
       - ./data:/data:ro
 
     environment:
-      # Strong API key, set to your own random value
-      SSHMCP_API_KEY: "CHANGE_ME_WITH_A_LONG_RANDOM_API_KEY"
+      # Values are interpolated from the shell environment or a .env file
+      # next to this compose file. The :-fallbacks keep the previous
+      # CHANGE_ME placeholders so a missing config stays obvious.
+      SSHMCP_API_KEY: "${SSHMCP_API_KEY:-CHANGE_ME_WITH_A_LONG_RANDOM_API_KEY}"
 
       # Target MCP server inside the network
-      SSHMCP_TARGET_HOST: "sshmcp-core"
-      SSHMCP_TARGET_PORT: "8000"
+      SSHMCP_TARGET_HOST: "${SSHMCP_TARGET_HOST:-sshmcp-core}"
+      SSHMCP_TARGET_PORT: "${SSHMCP_TARGET_PORT:-8000}"
 
       # Port on which the auth proxy listens inside the container
-      SSHMCP_LISTEN_PORT: "8822"
+      SSHMCP_LISTEN_PORT: "${SSHMCP_LISTEN_PORT:-8822}"
 
       # Alias registry file with SSH credentials (plaintext for now)
-      SSHMCP_ALIASES_FILE: "/data/ssh_aliases.json"
+      SSHMCP_ALIASES_FILE: "${SSHMCP_ALIASES_FILE:-/data/ssh_aliases.json}"
 
       # Admin port + password for the alias-management UI / CLI
-      SSHMCP_ADMIN_PORT: "8825"
-      SSHMCP_ADMIN_PASSWORD: "CHANGE_ME_ADMIN"
+      SSHMCP_ADMIN_PORT: "${SSHMCP_ADMIN_PORT:-8825}"
+      SSHMCP_ADMIN_PASSWORD: "${SSHMCP_ADMIN_PASSWORD:-CHANGE_ME_ADMIN}"
 
 networks:
   highfishNetwork:
