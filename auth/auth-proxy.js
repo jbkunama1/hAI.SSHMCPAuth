@@ -94,6 +94,7 @@ function aliasToolDefinition() {
     name: "ssh_list_aliases",
     description:
       "List all configured SSH aliases (alias, host, port, username). Never includes passwords or keys.",
+    inputSchema: { type: "object", properties: {} },
   };
 }
 

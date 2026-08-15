@@ -170,6 +170,14 @@ async function main() {
       "tools=" + namesB.join(",")
     );
 
+    // 4c. ssh_list_aliases tool definition is schema-valid (has inputSchema)
+    const aliasTool = r4b.body.result.tools.find((t) => t.name === "ssh_list_aliases");
+    check(
+      "ssh_list_aliases has a valid inputSchema",
+      aliasTool && aliasTool.inputSchema && typeof aliasTool.inputSchema === "object",
+      JSON.stringify(aliasTool)
+    );
+
   // 5. bad auth -> 401
   const r5 = await new Promise((resolve, reject) => {
     const data = JSON.stringify({ jsonrpc: "2.0", id: 5, method: "tools/list" });
