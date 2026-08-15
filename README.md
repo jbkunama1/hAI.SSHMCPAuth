@@ -146,7 +146,10 @@ services:
           SSHMCP_API_KEY: "${SSHMCP_API_KEY:-CHANGE_ME_WITH_A_LONG_RANDOM_API_KEY}"
           SSHMCP_TARGET_HOST: "${SSHMCP_TARGET_HOST:-sshmcp-core}"
           SSHMCP_TARGET_PORT: "${SSHMCP_TARGET_PORT:-8000}"
-          SSHMCP_LISTEN_PORT: "${SSHMCP_LISTEN_PORT:-8822}"
+                    # Upstream endpoint path. mingyang91/ssh-mcp serves streamable HTTP at
+                    # "/"; clients still call ".../mcp" on the proxy.
+                    SSHMCP_TARGET_PATH: "${SSHMCP_TARGET_PATH:-/}"
+                    SSHMCP_LISTEN_PORT: "${SSHMCP_LISTEN_PORT:-8822}"
           SSHMCP_ALIASES_FILE: "${SSHMCP_ALIASES_FILE:-/data/ssh_aliases.json}"
           SSHMCP_ADMIN_PORT: "${SSHMCP_ADMIN_PORT:-8825}"
           SSHMCP_ADMIN_PASSWORD: "${SSHMCP_ADMIN_PASSWORD:-CHANGE_ME_ADMIN}"
@@ -181,6 +184,7 @@ The auth container should report that it is listening on port `8822`. The core c
 | `SSHMCP_API_KEY` | yes | none | API key expected in `Authorization: ****** The container exits if it is missing. |
 | `SSHMCP_TARGET_HOST` | no | `sshmcp-core` | Docker DNS name or hostname of the upstream MCP server. |
 | `SSHMCP_TARGET_PORT` | no | `8000` | Internal TCP port of the upstream MCP server. |
+| `SSHMCP_TARGET_PATH` | no | `/` | Upstream endpoint path. `mingyang91/ssh-mcp` serves streamable HTTP at `/`, while clients call `/mcp` on the proxy. |
 | `SSHMCP_LISTEN_PORT` | no | `8822` | Port on which the auth layer listens. |
 | `SSHMCP_ALIASES_FILE` | no | `/usr/src/app/data/ssh_aliases.json` | Path to the JSON alias registry (SSH host, port, username, password/key path). |
 | `SSHMCP_ADMIN_PORT` | no | `8825` | Port of the password-protected admin UI / CLI for managing aliases. |
@@ -461,7 +465,10 @@ services:
           SSHMCP_API_KEY: "${SSHMCP_API_KEY:-CHANGE_ME_WITH_A_LONG_RANDOM_API_KEY}"
           SSHMCP_TARGET_HOST: "${SSHMCP_TARGET_HOST:-sshmcp-core}"
           SSHMCP_TARGET_PORT: "${SSHMCP_TARGET_PORT:-8000}"
-          SSHMCP_LISTEN_PORT: "${SSHMCP_LISTEN_PORT:-8822}"
+                    # Upstream-Endpunkt-Pfad. mingyang91/ssh-mcp bietet Streamable HTTP unter
+                    # "/" an; Clients rufen trotzdem ".../mcp" auf dem Proxy auf.
+                    SSHMCP_TARGET_PATH: "${SSHMCP_TARGET_PATH:-/}"
+                    SSHMCP_LISTEN_PORT: "${SSHMCP_LISTEN_PORT:-8822}"
           SSHMCP_ALIASES_FILE: "${SSHMCP_ALIASES_FILE:-/data/ssh_aliases.json}"
           SSHMCP_ADMIN_PORT: "${SSHMCP_ADMIN_PORT:-8825}"
           SSHMCP_ADMIN_PASSWORD: "${SSHMCP_ADMIN_PASSWORD:-CHANGE_ME_ADMIN}"
@@ -496,6 +503,7 @@ Der Auth-Container sollte melden, dass er auf Port `8822` lauscht. Der Core-Cont
 | `SSHMCP_API_KEY` | ja | keine | API-Key, der in `Authorization: ******` erwartet wird. Der Container beendet sich, wenn er fehlt. |
 | `SSHMCP_TARGET_HOST` | nein | `sshmcp-core` | Docker-DNS-Name oder Hostname des Upstream-MCP-Servers. |
 | `SSHMCP_TARGET_PORT` | nein | `8000` | Interner TCP-Port des Upstream-MCP-Servers. |
+| `SSHMCP_TARGET_PATH` | nein | `/` | Upstream-Endpunkt-Pfad. `mingyang91/ssh-mcp` bietet Streamable HTTP unter `/` an, während Clients `/mcp` auf dem Proxy aufrufen. |
 | `SSHMCP_LISTEN_PORT` | nein | `8822` | Port, auf dem die Auth-Schicht lauscht. |
 | `SSHMCP_ALIASES_FILE` | nein | `/usr/src/app/data/ssh_aliases.json` | Pfad zur JSON-Alias-Registrierung (SSH-Host, Port, Benutzername, Passwort/Key-Pfad). |
 | `SSHMCP_ADMIN_PORT` | nein | `8825` | Port der passwortgeschützten Admin-UI / CLI zur Alias-Verwaltung. |

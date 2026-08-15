@@ -16,6 +16,9 @@ function normalizeSecret(v) {
 const API_KEY = normalizeSecret(process.env.SSHMCP_API_KEY);
 const TARGET_HOST = process.env.SSHMCP_TARGET_HOST || "sshmcp-core";
 const TARGET_PORT = parseInt(process.env.SSHMCP_TARGET_PORT || "8000", 10);
+// Upstream MCP endpoint path. mingyang91/ssh-mcp serves streamable HTTP at "/"
+// (not "/mcp"), so the proxy maps whatever path the client used to this one.
+const TARGET_PATH = process.env.SSHMCP_TARGET_PATH || "/";
 const LISTEN_PORT = parseInt(process.env.SSHMCP_LISTEN_PORT || "8822", 10);
 const ADMIN_PORT = parseInt(process.env.SSHMCP_ADMIN_PORT || "8825", 10);
 const ADMIN_PASSWORD = normalizeSecret(process.env.SSHMCP_ADMIN_PASSWORD || "");
@@ -142,11 +145,17 @@ function forward(req, res, modifiedBody, onResponse) {
   const headers = { ...req.headers };
   delete headers["content-length"];
 
+  // Map the client's URL onto the upstream endpoint: host is fixed, but the
+  // path is the upstream TARGET_PATH so clients can use /mcp while the core
+  // serves "/". Query string (if any) is preserved.
+  const u = new URL(req.url, "http://mcp.local");
+  const upstreamPath = TARGET_PATH + (u.search || "");
+
   const proxyReq = http.request(
     {
       hostname: TARGET_HOST,
       port: TARGET_PORT,
-      path: req.url,
+      path: upstreamPath,
       method: req.method,
       headers,
     },

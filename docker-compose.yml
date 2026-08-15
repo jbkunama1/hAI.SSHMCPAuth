@@ -46,9 +46,12 @@ services:
       # CHANGE_ME placeholders so a missing config stays obvious.
       SSHMCP_API_KEY: "${SSHMCP_API_KEY:-CHANGE_ME_WITH_A_LONG_RANDOM_API_KEY}"
 
-      # Target MCP server inside the network
+      # Target MCP server inside the network.
+      # TARGET_PATH is the upstream endpoint path. mingyang91/ssh-mcp serves
+      # streamable HTTP at "/", so clients still call /mcp on the proxy.
       SSHMCP_TARGET_HOST: "${SSHMCP_TARGET_HOST:-sshmcp-core}"
       SSHMCP_TARGET_PORT: "${SSHMCP_TARGET_PORT:-8000}"
+      SSHMCP_TARGET_PATH: "${SSHMCP_TARGET_PATH:-/}"
 
       # Port on which the auth proxy listens inside the container
       SSHMCP_LISTEN_PORT: "${SSHMCP_LISTEN_PORT:-8822}"

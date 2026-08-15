@@ -11,7 +11,9 @@ const PROXY_PORT = 18822;
 const MOCK_PORT = 18000;
 
 // --- mock upstream core ---
+let lastUpstreamPath = null;
 const mock = http.createServer((req, res) => {
+  lastUpstreamPath = req.url;
   let body = "";
   req.on("data", (c) => (body += c));
   req.on("end", () => {
@@ -85,6 +87,7 @@ async function main() {
       SSHMCP_API_KEY: '  "test-key-123"  ', // messy env (quotes + whitespace) must be normalized
       SSHMCP_TARGET_HOST: "127.0.0.1",
       SSHMCP_TARGET_PORT: String(MOCK_PORT),
+      SSHMCP_TARGET_PATH: "/", // Explicitly set target path for test
       SSHMCP_LISTEN_PORT: String(PROXY_PORT),
       SSHMCP_ALIASES_FILE: aliasesFile,
     },
@@ -194,6 +197,9 @@ async function main() {
     req.end(data);
   });
   check("lowercase bearer + messy env key -> 200", r6.status === 200, "status=" + r6.status);
+
+  // 7. client post to /mcp should arrive at upstream / (TARGET_PATH)
+  check("client POST to /mcp arrives at upstream TARGET_PATH", lastUpstreamPath === "/");
 
   proxy.kill();
   mock.close();
