@@ -133,18 +133,21 @@ services:
       - highfishNetwork
     ports:
       - "8822:8822"
-    environment:
-      SSHMCP_API_KEY: "CHANGE_ME_WITH_A_LONG_RANDOM_API_KEY"
-      SSHMCP_TARGET_HOST: "sshmcp-core"
-      SSHMCP_TARGET_PORT: "8000"
-      SSHMCP_LISTEN_PORT: "8822"
+      volumes:
+        - ./data:/data:ro
+      environment:
+        SSHMCP_API_KEY: "CHANGE_ME_WITH_A_LONG_RANDOM_API_KEY"
+        SSHMCP_TARGET_HOST: "sshmcp-core"
+        SSHMCP_TARGET_PORT: "8000"
+        SSHMCP_LISTEN_PORT: "8822"
+        SSHMCP_ALIASES_FILE: "/data/ssh_aliases.json"
 
-networks:
-  highfishNetwork:
-    external: true
-```
+  networks:
+    highfishNetwork:
+      external: true
+  ```
 
-The external network can be created with:
+  The external network can be created with:
 
 ```bash
 docker network create highfishNetwork
@@ -172,6 +175,7 @@ The auth container should report that it is listening on port `8822`. The core c
 | `SSHMCP_TARGET_HOST` | no | `sshmcp-core` | Docker DNS name or hostname of the upstream MCP server. |
 | `SSHMCP_TARGET_PORT` | no | `8000` | Internal TCP port of the upstream MCP server. |
 | `SSHMCP_LISTEN_PORT` | no | `8822` | Port on which the auth layer listens. |
+| `SSHMCP_ALIASES_FILE` | no | `/usr/src/app/data/ssh_aliases.json` | Path to the JSON alias registry (SSH host, port, username, password/key path). |
 
 #### `sshmcp-core`
 
@@ -225,6 +229,91 @@ The auth layer compares the incoming `Authorization` header to:
 ```
 
 Requests with a missing or incorrect header receive HTTP `401 Unauthorized`. Requests with a matching header are streamed to the configured upstream host and port. The layer does not perform SSH authentication itself; the upstream MCP SSH server handles the SSH connection to the selected LAN host.
+
+### SSH alias registry
+
+The auth layer can pre-load up to 20 SSH servers with credentials so you can address them by alias (for example `ssh1`, `ssh2`, ...) instead of typing `host`, `username` and `password` on every call.
+
+1. Create your credentials file from the sample (never commit the real one):
+
+   ```bash
+   cp data/ssh_aliases.example.json data/ssh_aliases.json
+   ```
+
+   Fill in your servers:
+
+   ```json
+   {
+     "ssh1": {
+       "host": "10.0.0.11",
+       "port": 22,
+       "username": "your-user",
+       "password": "your-secret"
+     }
+   }
+   ```
+
+   Entries may use `password` for password authentication or `key_path` for key-based authentication. `data/ssh_aliases.json` is excluded from git (see `data/.gitignore`) so passwords are never committed. Store the file on the host and bind-mount it into the container:
+
+   ```yaml
+   volumes:
+     - ./data:/data:ro
+   ```
+
+2. Point the proxy at the file:
+
+   ```yaml
+   environment:
+     SSHMCP_ALIASES_FILE: "/data/ssh_aliases.json"
+   ```
+
+3. Use the alias in `ssh_connect`:
+
+   ```json
+   {
+     "method": "tools/call",
+     "params": {
+       "name": "ssh_connect",
+       "arguments": { "address": "ssh1" }
+     }
+   }
+   ```
+
+   The proxy rewrites `address` to `host:port` and injects the stored `username` and `password`/`key_path`.
+
+4. List configured aliases with the `ssh_list_aliases` tool. This tool is served by the auth layer directly and never returns passwords or keys.
+
+#### Admin UI and CLI
+
+The auth layer exposes a password-protected admin server on its own port (`8825` by default, `SSHMCP_ADMIN_PORT`) for managing the alias registry at runtime — no file editing needed.
+
+1. Set the admin password:
+
+   ```yaml
+   environment:
+     SSHMCP_ADMIN_PASSWORD: "choose-a-strong-password"
+   ```
+
+   > If `SSHMCP_ADMIN_PASSWORD` is unset or empty the admin server is disabled (the proxy logs a warning and continues).
+
+2. **UI**: open `http://<host>:8825/`, log in with the admin password, and manage aliases from the browser. The login sets an `HttpOnly` cookie; a `X-Admin-Token` header is used by the CLI.
+
+3. **CLI** (runs wherever Node is available, targets the admin REST API):
+
+   ```bash
+   export SSHMCP_ADMIN_BASE="http://localhost:8825"
+   export SSHMCP_ADMIN_PASSWORD="choose-a-strong-password"
+
+   node auth/manage-aliases.mjs list
+   node auth/manage-aliases.mjs add ssh1 --host 10.0.0.11 --port 22 --username your-user --password your-secret
+   node auth/manage-aliases.mjs update ssh1 --port 2222
+   node auth/manage-aliases.mjs get ssh1
+   node auth/manage-aliases.mjs remove ssh1
+   ```
+
+   All commands write through to `SSHMCP_ALIASES_FILE` (atomic), take effect immediately, respect the 20-alias limit, and never print passwords or keys (only `hasPassword` / `hasKeyPath` flags).
+
+Upgrade path: credentials are stored in plaintext for now. The `key_path` field already supports SSH keys, and secrets handling can later be moved to Docker secrets without changing the alias format.
 
 ### GitHub Actions and GHCR
 
@@ -350,18 +439,21 @@ services:
       - highfishNetwork
     ports:
       - "8822:8822"
-    environment:
-      SSHMCP_API_KEY: "CHANGE_ME_WITH_A_LONG_RANDOM_API_KEY"
-      SSHMCP_TARGET_HOST: "sshmcp-core"
-      SSHMCP_TARGET_PORT: "8000"
-      SSHMCP_LISTEN_PORT: "8822"
+        volumes:
+          - ./data:/data:ro
+        environment:
+          SSHMCP_API_KEY: "CHANGE_ME_WITH_A_LONG_RANDOM_API_KEY"
+          SSHMCP_TARGET_HOST: "sshmcp-core"
+          SSHMCP_TARGET_PORT: "8000"
+          SSHMCP_LISTEN_PORT: "8822"
+          SSHMCP_ALIASES_FILE: "/data/ssh_aliases.json"
 
-networks:
-  highfishNetwork:
-    external: true
-```
+    networks:
+      highfishNetwork:
+        external: true
+    ```
 
-Das externe Netzwerk kann wie folgt angelegt werden:
+    Das externe Netzwerk kann wie folgt angelegt werden:
 
 ```bash
 docker network create highfishNetwork
@@ -389,6 +481,7 @@ Der Auth-Container sollte melden, dass er auf Port `8822` lauscht. Der Core-Cont
 | `SSHMCP_TARGET_HOST` | nein | `sshmcp-core` | Docker-DNS-Name oder Hostname des Upstream-MCP-Servers. |
 | `SSHMCP_TARGET_PORT` | nein | `8000` | Interner TCP-Port des Upstream-MCP-Servers. |
 | `SSHMCP_LISTEN_PORT` | nein | `8822` | Port, auf dem die Auth-Schicht lauscht. |
+| `SSHMCP_ALIASES_FILE` | nein | `/usr/src/app/data/ssh_aliases.json` | Pfad zur JSON-Alias-Registrierung (SSH-Host, Port, Benutzername, Passwort/Key-Pfad). |
 
 #### `sshmcp-core`
 
@@ -442,6 +535,91 @@ Die Auth-Schicht vergleicht den eingehenden `Authorization`-Header mit:
 ```
 
 Anfragen mit fehlendem oder falschem Header erhalten HTTP `401 Unauthorized`. Anfragen mit passendem Header werden an den konfigurierten Upstream-Host und -Port gestreamt. Die Schicht führt selbst keine SSH-Authentifizierung durch; der Upstream-MCP-SSH-Server übernimmt die SSH-Verbindung zum ausgewählten LAN-Host.
+
+### SSH-Alias-Registrierung
+
+Die Auth-Schicht kann bis zu 20 SSH-Server mit Zugangsdaten vorbelegen, sodass Sie sie über einen Alias (zum Beispiel `ssh1`, `ssh2`, ...) ansprechen können, statt bei jedem Aufruf `host`, `username` und `password` einzugeben.
+
+1. Zugangsdaten-Datei aus dem Beispiel anlegen (die echte Datei niemals committen):
+
+   ```bash
+   cp data/ssh_aliases.example.json data/ssh_aliases.json
+   ```
+
+   Server eintragen:
+
+   ```json
+   {
+     "ssh1": {
+       "host": "10.0.0.11",
+       "port": 22,
+       "username": "dein-benutzer",
+       "password": "dein-geheimnis"
+     }
+   }
+   ```
+
+   Einträge können `password` für Passwort-Authentifizierung oder `key_path` für Schlüssel-Authentifizierung verwenden. `data/ssh_aliases.json` ist von git ausgeschlossen (siehe `data/.gitignore`), damit Passwörter nie committet werden. Die Datei auf dem Host ablegen und in den Container bind-mounten:
+
+   ```yaml
+   volumes:
+     - ./data:/data:ro
+   ```
+
+2. Proxy auf die Datei zeigen lassen:
+
+   ```yaml
+   environment:
+     SSHMCP_ALIASES_FILE: "/data/ssh_aliases.json"
+   ```
+
+3. Alias in `ssh_connect` verwenden:
+
+   ```json
+   {
+     "method": "tools/call",
+     "params": {
+       "name": "ssh_connect",
+       "arguments": { "address": "ssh1" }
+     }
+   }
+   ```
+
+   Der Proxy schreibt `address` zu `host:port` um und fügt die gespeicherten `username`- und `password`/`key_path`-Werte ein.
+
+4. Konfigurierte Aliase mit dem Tool `ssh_list_aliases` auflisten. Dieses Tool wird direkt von der Auth-Schicht bedient und gibt niemals Passwörter oder Schlüssel zurück.
+
+#### Admin-UI und CLI
+
+Die Auth-Schicht stellt einen passwortgeschützten Admin-Server auf einem eigenen Port (`8825` standardmäßig, `SSHMCP_ADMIN_PORT`) bereit, um die Alias-Registrierung zur Laufzeit zu verwalten — ohne Datei-Editierung.
+
+1. Admin-Passwort setzen:
+
+   ```yaml
+   environment:
+     SSHMCP_ADMIN_PASSWORD: "ein-starkes-passwort-waehlen"
+   ```
+
+   > Ist `SSHMCP_ADMIN_PASSWORD` nicht gesetzt oder leer, ist der Admin-Server deaktiviert (der Proxy loggt eine Warnung und läuft weiter).
+
+2. **UI**: `http://<host>:8825/` im Browser öffnen, mit dem Admin-Passwort anmelden und Aliase verwalten. Der Login setzt ein `HttpOnly`-Cookie; für die CLI wird der `X-Admin-Token`-Header verwendet.
+
+3. **CLI** (läuft überall, wo Node verfügbar ist, spricht die Admin-REST-API an):
+
+   ```bash
+   export SSHMCP_ADMIN_BASE="http://localhost:8825"
+   export SSHMCP_ADMIN_PASSWORD="ein-starkes-passwort-waehlen"
+
+   node auth/manage-aliases.mjs list
+   node auth/manage-aliases.mjs add ssh1 --host 10.0.0.11 --port 22 --username dein-benutzer --password dein-geheimnis
+   node auth/manage-aliases.mjs update ssh1 --port 2222
+   node auth/manage-aliases.mjs get ssh1
+   node auth/manage-aliases.mjs remove ssh1
+   ```
+
+   Alle Befehle schreiben atomar in `SSHMCP_ALIASES_FILE`, wirken sofort, respektieren das 20-Alias-Limit und geben niemals Passwörter oder Schlüssel aus (nur `hasPassword`-/`hasKeyPath`-Flags).
+
+Ausbaupfad: Die Zugangsdaten liegen derzeit im Klartext vor. Das Feld `key_path` unterstützt bereits SSH-Keys; die Secret-Verwaltung kann später ohne Formatänderung auf Docker-Secrets umgestellt werden.
 
 ### GitHub Actions und GHCR
 

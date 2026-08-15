@@ -1,0 +1,3 @@
+# Never commit real SSH credentials. Copy ssh_aliases.example.json to
+# ssh_aliases.json and fill in the real servers + passwords locally.
+ssh_aliases.json
