@@ -5,12 +5,20 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 
-const API_KEY = process.env.SSHMCP_API_KEY;
+// Normalize env secrets: trim whitespace (newlines sneak in via Portainer/compose)
+// and strip literal wrapping quotes if a YAML value was pasted.
+function normalizeSecret(v) {
+  let s = String(v || "").trim();
+  if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) s = s.slice(1, -1).trim();
+  return s;
+}
+
+const API_KEY = normalizeSecret(process.env.SSHMCP_API_KEY);
 const TARGET_HOST = process.env.SSHMCP_TARGET_HOST || "sshmcp-core";
 const TARGET_PORT = parseInt(process.env.SSHMCP_TARGET_PORT || "8000", 10);
 const LISTEN_PORT = parseInt(process.env.SSHMCP_LISTEN_PORT || "8822", 10);
 const ADMIN_PORT = parseInt(process.env.SSHMCP_ADMIN_PORT || "8825", 10);
-const ADMIN_PASSWORD = process.env.SSHMCP_ADMIN_PASSWORD || "";
+const ADMIN_PASSWORD = normalizeSecret(process.env.SSHMCP_ADMIN_PASSWORD || "");
 const ALIASES_FILE =
   process.env.SSHMCP_ALIASES_FILE ||
   path.join(__dirname, "data", "ssh_aliases.json");
@@ -173,11 +181,14 @@ function forward(req, res, modifiedBody, onResponse) {
 
 loadAliases();
 
-const server = http.createServer((req, res) => {
-  const authHeader = req.headers["authorization"] || "";
-  const expected = "Bearer " + API_KEY;
+function isAuthorized(authHeader) {
+  const raw = String(authHeader || "").trim();
+  // scheme is case-insensitive per RFC 7235; be tolerant of stray whitespace
+  return /^bearer\s+/i.test(raw) && raw.replace(/^bearer\s+/i, "").trim() === API_KEY;
+}
 
-  if (authHeader !== expected) {
+const server = http.createServer((req, res) => {
+  if (!isAuthorized(req.headers["authorization"])) {
     res.writeHead(401, { "Content-Type": "text/plain" });
     res.end("Unauthorized");
     return;

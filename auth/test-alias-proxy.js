@@ -82,7 +82,7 @@ async function main() {
   const proxy = spawn(process.execPath, [path.resolve("auth/auth-proxy.js")], {
     env: {
       ...process.env,
-      SSHMCP_API_KEY: API_KEY,
+      SSHMCP_API_KEY: '  "test-key-123"  ', // messy env (quotes + whitespace) must be normalized
       SSHMCP_TARGET_HOST: "127.0.0.1",
       SSHMCP_TARGET_PORT: String(MOCK_PORT),
       SSHMCP_LISTEN_PORT: String(PROXY_PORT),
@@ -173,6 +173,27 @@ async function main() {
     req.end(data);
   });
   check("bad api key -> 401", r5.status === 401, "status=" + r5.status);
+
+  // 6. tolerant auth: lowercase "bearer" scheme still authorizes
+  const r6 = await new Promise((resolve, reject) => {
+    const data = JSON.stringify({ jsonrpc: "2.0", id: 6, method: "tools/list" });
+    const req = http.request(
+      {
+        host: "127.0.0.1",
+        port: PROXY_PORT,
+        path: "/mcp",
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(data), Authorization: "bearer " + API_KEY },
+      },
+      (res) => {
+        let b = "";
+        res.on("data", (c) => (b += c));
+        res.on("end", () => resolve({ status: res.statusCode }));
+      }
+    );
+    req.end(data);
+  });
+  check("lowercase bearer + messy env key -> 200", r6.status === 200, "status=" + r6.status);
 
   proxy.kill();
   mock.close();
