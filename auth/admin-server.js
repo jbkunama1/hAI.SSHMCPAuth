@@ -330,7 +330,14 @@ APP.load();
 `;
 
 function startAdminServer({ port, password, aliasesFile, onReload }) {
-  if (!password) {
+  // Trim: env values from Portainer often carry trailing whitespace/newlines,
+    // or literal wrapping quotes when a YAML value was pasted into the field.
+    let p = String(password || "").trim();
+    if ((p.startsWith('"') && p.endsWith('"')) || (p.startsWith("'") && p.endsWith("'"))) {
+      p = p.slice(1, -1).trim();
+    }
+    password = p;
+    if (!password) {
     console.warn("SSHMCP_ADMIN_PASSWORD is not set - admin server disabled.");
     return null;
   }
@@ -352,7 +359,7 @@ function startAdminServer({ port, password, aliasesFile, onReload }) {
       let ok = false;
       try {
         const body = JSON.parse(await readBody(req));
-        ok = body.password === password;
+        ok = String(body.password).trim() === password;
       } catch (err) {
         bodyErr = err.message;
       }

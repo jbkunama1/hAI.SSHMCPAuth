@@ -15,8 +15,16 @@
 import http from "node:http";
 import crypto from "node:crypto";
 
+// Password normalization - must match admin-server.js startAdminServer() so the
+// X-Admin-Token equals the token the server expects.
+function normalizePassword(p) {
+  let s = String(p || "").trim();
+  if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) s = s.slice(1, -1).trim();
+  return s;
+}
+
 const BASE = process.env.SSHMCP_ADMIN_BASE || "http://localhost:8825";
-const ADMIN_PASSWORD = process.env.SSHMCP_ADMIN_PASSWORD || "";
+const ADMIN_PASSWORD = normalizePassword(process.env.SSHMCP_ADMIN_PASSWORD || "");
 const PORT_RE = /^[1-9][0-9]{0,4}$/;
 
 function request(method, pathname, bodyObj) {

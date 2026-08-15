@@ -32,13 +32,13 @@ const port = 18925;
 const password = "test-pw";
 const base = `http://127.0.0.1:${port}`;
 
-function req(method, p, token, body) {
+function req(method, p, token, body, p2) {
   return new Promise((resolve, reject) => {
     const payload = body === undefined ? null : Buffer.from(JSON.stringify(body), "utf8");
     const r = http.request(
       {
         hostname: "127.0.0.1",
-        port,
+        port: p2 || port,
         path: p,
         method,
         headers: {
@@ -150,11 +150,28 @@ let server;
     assert.ok(!out.stdout.includes("clinox"), "removed via cli");
     console.log("PASS - CLI end-to-end (list/add/remove)");
 
-  // 8. delete via API
-  r = await req("DELETE", "/api/aliases/ssh1", token);
-  assert.strictEqual(r.status, 200, "delete ok");
+      // 8. env password normalization: trailing whitespace / wrapping quotes in the
+      //    env value (common in Portainer) must still authenticate.
+      const messyPw = '  "test-pw"  ';
+      const p2 = 18926;
+      const server2 = startAdminServer({ port: p2, password: messyPw, aliasesFile });
+      await new Promise((r) => setTimeout(r, 300));
+      const login2 = await req("POST", "/login", null, { password }, p2);
+      assert.strictEqual(login2.status, 200, "login with trimmed env password ok");
+      const login3 = await req("POST", "/login", null, { password: "test-pw " }, p2);
+      assert.strictEqual(login3.status, 200, "login with trailing space in input ok");
+      const badLogin2 = await req("POST", "/login", null, { password: "nope" }, p2);
+      assert.strictEqual(badLogin2.status, 401, "bad login still rejected");
+      const cli = await runCli(["list"], { ...process.env, SSHMCP_ADMIN_BASE: `http://127.0.0.1:${p2}`, SSHMCP_ADMIN_PASSWORD: messyPw });
+      assert.strictEqual(cli.status, 0, `cli token matches trimmed env pw: ${cli.stderr}${cli.stdout}`);
+      server2.close();
+      console.log("PASS - env password normalization (quotes + whitespace)");
 
-  // 9. onReload hook fired (file content matches in-memory reload)
+      // 9. delete via API
+      r = await req("DELETE", "/api/aliases/ssh1", token);
+      assert.strictEqual(r.status, 200, "delete ok");
+
+      // 10. onReload hook fired (file content matches in-memory reload)
   const onDisk = JSON.parse(fs.readFileSync(aliasesFile, "utf8"));
   assert.ok(!onDisk.ssh1, "deleted alias absent on disk");
 
