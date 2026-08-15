@@ -1,0 +1,55 @@
+version: "3.8"
+
+services:
+  # Core MCP SSH server: mingyang91/ssh-mcp, only reachable inside Docker network
+  sshmcp-core:
+    image: mingyang91/ssh-mcp:latest
+    container_name: sshmcp-core
+    restart: unless-stopped
+
+    networks:
+      - highfishNetwork
+
+    # Internal MCP port only
+    expose:
+      - "8000"
+
+    # Optional host data mount (adjust to your environment)
+    volumes:
+      - /home/sshmcp:/data
+
+    environment:
+      RUST_LOG: "info"
+      MCP_PORT: "8000"
+
+  # Auth layer: Node.js HTTP proxy enforcing API key, exposing port 8822
+  sshmcp-auth:
+    image: node:18-alpine
+    container_name: sshmcp-auth
+    restart: unless-stopped
+
+    networks:
+      - highfishNetwork
+
+    ports:
+      - "8822:8822"   # external:internal
+
+    volumes:
+      - /home/sshmcp/auth:/auth:ro
+
+    environment:
+      # Strong API key, set to your own random value
+      SSHMCP_API_KEY: "DEIN_STARKER_API_KEY"
+
+      # Target MCP server inside the network
+      SSHMCP_TARGET_HOST: "sshmcp-core"
+      SSHMCP_TARGET_PORT: "8000"
+
+      # Port on which the auth proxy listens inside the container
+      SSHMCP_LISTEN_PORT: "8822"
+
+    command: ["node", "/auth/auth-proxy.js"]
+
+networks:
+  highfishNetwork:
+    external: true
