@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark light">
+<title>hAI.SSHMCPAuth — Auth-layered MCP SSH Gateway</title>
+<meta name="description" content="Nginx? No — a Node.js API-key auth layer in front of an MCP SSH gateway. SSH alias registry, admin UI and CLI, Docker + Portainer ready.">
+<style>
+  :root{
+    --bg:#0a0e16; --bg2:#0f1522; --card:#121a2b; --line:#1e2a3f;
+    --txt:#e6edf7; --muted:#93a3bf; --accent:#38bdf8; --accent2:#8b5cf6;
+    --ok:#34d399; --warn:#fbbf24;
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --bg:#f4f7fc; --bg2:#e9eef7; --card:#ffffff; --line:#d8e0ee;
+      --txt:#101828; --muted:#51607a; --accent:#0284c7; --accent2:#7c3aed;
+      --ok:#059669; --warn:#b45309;
+    }
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    background:radial-gradient(1200px 600px at 80% -10%,rgba(139,92,246,.14),transparent 60%),
+               radial-gradient(900px 500px at 0% 100%,rgba(56,189,248,.10),transparent 55%),
+               var(--bg);
+    color:var(--txt); line-height:1.6;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+  header{padding:72px 0 40px}
+  .badge{
+    display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;
+    letter-spacing:.08em;text-transform:uppercase;color:var(--accent);
+    background:color-mix(in srgb,var(--accent) 12%,transparent);
+    border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);
+    padding:6px 12px;border-radius:999px;margin-bottom:20px;
+  }
+  h1{font-size:clamp(2.2rem,5vw,3.6rem);line-height:1.1;letter-spacing:-.02em;font-weight:800}
+  h1 .grad{
+    background:linear-gradient(92deg,var(--accent),var(--accent2));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .tagline{max-width:640px;margin-top:18px;font-size:1.15rem;color:var(--muted)}
+  .cta{margin-top:28px;display:flex;gap:12px;flex-wrap:wrap}
+  .btn{
+    display:inline-flex;align-items:center;gap:8px;padding:12px 20px;border-radius:12px;
+    font-weight:600;font-size:.95rem;text-decoration:none;transition:transform .15s ease,box-shadow .15s ease;
+  }
+  .btn-primary{background:linear-gradient(92deg,var(--accent),var(--accent2));color:#fff;box-shadow:0 8px 24px -8px rgba(99,102,241,.6)}
+  .btn-ghost{border:1px solid var(--line);color:var(--txt)}
+  .btn:hover{transform:translateY(-2px)}
+  .btn-primary:hover{box-shadow:0 12px 30px -8px rgba(99,102,241,.75)}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+
+  section{padding:36px 0}
+  h2{font-size:1.5rem;margin-bottom:6px;letter-spacing:-.01em}
+  .sub{color:var(--muted);margin-bottom:22px;max-width:720px}
+
+  .pills{display:flex;flex-wrap:wrap;gap:10px;margin-top:30px}
+  .pill{
+    display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:999px;
+    font-size:.87rem;font-weight:500;color:var(--txt);
+    background:var(--card);border:1px solid var(--line);
+  }
+  .dot{width:8px;height:8px;border-radius:50%}
+  .dot.ok{background:var(--ok)} .dot.accent{background:var(--accent)} .dot.warn{background:var(--warn)}
+
+  .diagram{
+    margin:26px 0 8px;padding:24px;border:1px solid var(--line);border-radius:16px;
+    background:var(--card);font-size:.9rem;
+  }
+  .diagram .layer{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .diagram .node{
+    padding:10px 16px;border-radius:10px;border:1px solid var(--line);
+    background:var(--bg2);font-weight:600;white-space:nowrap;
+  }
+  .diagram .node.core{background:color-mix(in srgb,var(--accent2) 14%,var(--bg2))}
+  .diagram .node.auth{background:color-mix(in srgb,var(--accent) 14%,var(--bg2))}
+  .diagram .node.admin{border-style:dashed}
+  .diagram .arrow{color:var(--muted);text-align:center;padding:4px 0;font-size:.8rem}
+  .diagram .arrow::before{content:"\2193";display:block;font-size:1.2rem}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px;margin-top:24px}
+  .card{
+    background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px;
+  }
+  .card h3{display:flex;align-items:center;gap:10px;font-size:1.05rem;margin-bottom:10px}
+  .card p{color:var(--muted);font-size:.94rem}
+  .card code{
+    display:inline-block;background:var(--bg2);border:1px solid var(--line);
+    border-radius:6px;padding:1px 7px;font-size:.85em;
+  }
+
+  pre{
+    margin-top:24px;padding:20px 22px;border-radius:14px;overflow:auto;
+    background:var(--card);border:1px solid var(--line);font-size:.85rem;line-height:1.7;
+  }
+  pre .cmt{color:var(--muted)}
+
+  table{width:100%;border-collapse:collapse;margin-top:22px;font-size:.9rem}
+  th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:600;font-size:.82rem;text-transform:uppercase;letter-spacing:.06em}
+  td var{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-style:normal;color:var(--accent)}
+
+  footer{padding:44px 0 56px;color:var(--muted);font-size:.9rem;border-top:1px solid var(--line);margin-top:48px}
+  footer a{color:var(--accent)}
+
+  @media (max-width:640px){
+    header{padding:48px 0 28px}
+    .diagram .arrow{display:none}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="badge">
+      <span class="dot ok"></span> Docker ready &middot; GHCR published
+    </div>
+    <h1>hAI.<span class="grad">SSHMCPAuth</span></h1>
+    <p class="tagline">
+      Auth-layered MCP SSH gateway: an API-key auth layer in front of
+      <code class="mono">mingyang91/ssh-mcp</code>, so AI agents can reach your LAN servers over SSH &mdash; safely.
+    </p>
+    <div class="cta">
+      <a class="btn btn-primary" href="https://github.com/jbkunama1/hAI.SSHMCPAuth">View on GitHub</a>
+      <a class="btn btn-ghost" href="https://github.com/jbkunama1/hAI.SSHMCPAuth/pkgs/container/hai.sshmcpauth">GHCR image</a>
+      <a class="btn btn-ghost" href="#deploy">Deploy with Portainer</a>
+    </div>
+    <div class="pills">
+      <span class="pill"><span class="dot accent"></span> Node.js auth proxy</span>
+      <span class="pill"><span class="dot accent"></span> SSH alias registry (up to 20)</span>
+      <span class="pill"><span class="dot warn"></span> Admin UI + CLI on :8825</span>
+      <span class="pill"><span class="dot ok"></span> MIT license</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section id="how">
+    <h2>How it works</h2>
+    <p class="sub">One externally visible port, an internal upstream, and SSH out to your LAN.</p>
+    <div class="diagram mono">
+      <div class="layer"><span class="node">MCP client / AnythingMCP</span></div>
+      <div class="arrow">Authorization: API key</div>
+      <div class="layer"><span class="node auth">sshmcp-auth &nbsp;:8822</span></div>
+      <div class="arrow">highfishNetwork</div>
+      <div class="layer"><span class="node core">sshmcp-core &nbsp;:8000</span></div>
+      <div class="arrow">SSH</div>
+      <div class="layer"><span class="node">LAN servers</span></div>
+    </div>
+    <div class="diagram mono">
+      <div class="layer"><span class="node admin">Password-protected admin UI / CLI &nbsp;:8825</span></div>
+      <div class="arrow">CRUD &rarr; alias registry (ssh1 &hellip; ssh20)</div>
+    </div>
+  </section>
+
+  <section id="features">
+    <h2>Features</h2>
+    <p class="sub">Everything the README promises, summarized.</p>
+    <div class="grid">
+      <div class="card">
+        <h3>&#128274; API-key auth</h3>
+        <p>Every MCP request must carry the <code>Authorization</code> header. The key lives only at runtime &mdash; never baked into the public Docker image. Wrong or missing key = <code>401 Unauthorized</code>.</p>
+      </div>
+      <div class="card">
+        <h3>&#127968; SSH alias registry</h3>
+        <p>Pre-load up to 20 servers and address them by alias (<code>ssh1</code>, <code>ssh2</code>, &hellip;) instead of retyping host, user and credentials. The <code>ssh_list_aliases</code> MCP tool never leaks passwords.</p>
+      </div>
+      <div class="card">
+        <h3>&#128736;&#65039; Admin UI &amp; CLI</h3>
+        <p>A password-protected server on port <code>8825</code> manages aliases at runtime &mdash; no file editing. Browser login via HttpOnly cookie, CLI via <code>X-Admin-Token</code>.</p>
+      </div>
+      <div class="card">
+        <h3>&#128679; Ready for keys &amp; secrets</h3>
+        <p>Credentials are plaintext today, but the alias format already supports <code>key_path</code>. Later you can move them to Docker secrets without changing anything else.</p>
+      </div>
+      <div class="card">
+        <h3>&#128640; Docker + Portainer</h3>
+        <p>Published at <code class="mono">ghcr.io/jbkunama1/hai.sshmcpauth:latest</code>, deployable from the repo or the web editor, wired to the external <code>highfishNetwork</code>.</p>
+      </div>
+      <div class="card">
+        <h3>&#128200; MCP over streamable HTTP</h3>
+        <p>Point anything from AnythingMCP to the auth layer&rsquo;s <code>/mcp</code> route over HTTPS. LAN test endpoint: <code class="mono">http://192.168.178.10:8822/mcp</code>.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="deploy">
+    <h2>Deploy</h2>
+    <p class="sub">In Portainer: <strong>Stacks &rarr; Add stack &rarr; Repository</strong>, URL, Compose path <code class="mono">docker-compose.yml</code>, branch <code class="mono">main</code>.</p>
+<pre><code><span class="cmt"># docker network create highfishNetwork</span>
+services:
+  sshmcp-core:
+    image: mingyang91/ssh-mcp:latest
+    container_name: sshmcp-core
+    restart: unless-stopped
+    networks: [highfishNetwork]
+    expose: ["8000"]
+    volumes:
+      - /home/sshmcp:/data
+    environment:
+      RUST_LOG: "info"
+      MCP_PORT: "8000"
+
+  sshmcp-auth:
+    image: ghcr.io/jbkunama1/hai.sshmcpauth:latest
+    container_name: sshmcp-auth
+    restart: unless-stopped
+    networks: [highfishNetwork]
+    ports:
+      - "8822:8822"   <span class="cmt"># MCP (external:internal)</span>
+      - "8825:8825"   <span class="cmt"># admin UI / CLI</span>
+    volumes:
+      - ./data:/data:ro
+    environment:
+      SSHMCP_API_KEY: "CHANGE_ME_WITH_A_LONG_RANDOM_API_KEY"
+      SSHMCP_TARGET_HOST: "sshmcp-core"
+      SSHMCP_TARGET_PORT: "8000"
+      SSHMCP_LISTEN_PORT: "8822"
+      SSHMCP_ALIASES_FILE: "/data/ssh_aliases.json"
+      SSHMCP_ADMIN_PORT: "8825"
+      SSHMCP_ADMIN_PASSWORD: "CHANGE_ME_ADMIN"
+
+networks:
+  highfishNetwork:
+    external: true
+</code></pre>
+  </section>
+
+  <section id="env">
+    <h2>Environment variables &mdash; <code class="mono">sshmcp-auth</code></h2>
+    <p class="sub">The full table (English) lives in the README. The essentials:</p>
+    <table>
+      <thead><tr><th>Variable</th><th>Required</th><th>Default</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><var>SSHMCP_API_KEY</var></td><td>yes</td><td>none</td><td>Key expected in <code>Authorization</code>. Container exits if missing.</td></tr>
+        <tr><td><var>SSHMCP_TARGET_HOST</var></td><td>no</td><td>sshmcp-core</td><td>Upstream MCP server name.</td></tr>
+        <tr><td><var>SSHMCP_TARGET_PORT</var></td><td>no</td><td>8000</td><td>Upstream internal port.</td></tr>
+        <tr><td><var>SSHMCP_LISTEN_PORT</var></td><td>no</td><td>8822</td><td>Auth layer listen port.</td></tr>
+        <tr><td><var>SSHMCP_ALIASES_FILE</var></td><td>no</td><td>data/ssh_aliases.json</td><td>Path to the alias registry JSON.</td></tr>
+        <tr><td><var>SSHMCP_ADMIN_PORT</var></td><td>no</td><td>8825</td><td>Admin UI / CLI port.</td></tr>
+        <tr><td><var>SSHMCP_ADMIN_PASSWORD</var></td><td>no</td><td>(empty)</td><td>Admin password. Empty = admin disabled.</td></tr>
+      </tbody>
+    </table>
+    <p class="sub" style="margin-top:14px">Generate a key: <code class="mono">openssl rand -hex 32</code>. Keep it in Portainer secrets, never in git.</p>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <a href="https://github.com/jbkunama1/hAI.SSHMCPAuth">hAI.SSHMCPAuth</a> &middot;
+    <a href="https://github.com/jbkunama1/hAI.SSHMCPAuth/blob/main/README.md">README</a> &middot;
+    <a href="https://github.com/jbkunama1/hAI.SSHMCPAuth/blob/main/LICENSE">MIT License</a> &middot;
+    Deploy only in a trusted network or behind VPN/tunnel with HTTPS. &#9749;
+  </div>
+</footer>
+
+</body>
+</html>
