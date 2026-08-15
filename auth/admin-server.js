@@ -278,12 +278,18 @@ var APP = (function () {
       }).then(function (r) {
         if (r.ok) load();
         else
-          r.json().then(function (e) {
-            var el = document.getElementById("formErr");
-            el.textContent = e.error || "Fehler";
-            el.style.display = "block";
-          });
-      });
+                r.text().then(function (t) {
+                  var msg = "Fehler " + r.status;
+                  try { msg = JSON.parse(t).error || msg; } catch (e) {}
+                  var el = document.getElementById("formErr");
+                  el.textContent = msg;
+                  el.style.display = "block";
+                });
+            }).catch(function (err) {
+              var el = document.getElementById("formErr");
+              el.textContent = "Netzwerkfehler: " + err.message;
+              el.style.display = "block";
+            });
     };
   }
 
