@@ -411,20 +411,28 @@ function startAdminServer({ port, password, aliasesFile, onReload }) {
         return sendJson(res, 400, { error: `maximum of ${MAX_ALIASES} aliases reached` });
       }
       aliases[name] = result.entry;
-      writeJson(aliasesFile, aliases);
-      if (onReload) onReload();
-      return sendJson(res, 200, { ok: true, ...publicView(aliases).find((x) => x.alias === name) });
-    }
+          try {
+            writeJson(aliasesFile, aliases);
+          } catch (err) {
+            return sendJson(res, 500, { error: "Speichern fehlgeschlagen: " + err.code + " - ist das data/ Verzeichnis beschreibbar?" });
+          }
+          if (onReload) onReload();
+          return sendJson(res, 200, { ok: true, ...publicView(aliases).find((x) => x.alias === name) });
+        }
 
-    if (req.method === "DELETE" && aliasMatch) {
-      const name = decodeURIComponent(aliasMatch[1]);
-      const aliases = readJson(aliasesFile);
-      if (!aliases[name]) return sendJson(res, 404, { error: "alias not found" });
-      delete aliases[name];
-      writeJson(aliasesFile, aliases);
-      if (onReload) onReload();
-      return sendJson(res, 200, { ok: true });
-    }
+        if (req.method === "DELETE" && aliasMatch) {
+          const name = decodeURIComponent(aliasMatch[1]);
+          const aliases = readJson(aliasesFile);
+          if (!aliases[name]) return sendJson(res, 404, { error: "alias not found" });
+          delete aliases[name];
+          try {
+            writeJson(aliasesFile, aliases);
+          } catch (err) {
+            return sendJson(res, 500, { error: "Löschen fehlgeschlagen: " + err.code + " - ist das data/ Verzeichnis beschreibbar?" });
+          }
+          if (onReload) onReload();
+          return sendJson(res, 200, { ok: true });
+        }
 
     return sendJson(res, 404, { error: "not found" });
   });

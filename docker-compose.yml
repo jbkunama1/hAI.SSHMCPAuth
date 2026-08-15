@@ -36,9 +36,10 @@ services:
       - "8825:8825"   # admin UI / CLI (alias registry)
 
     # Alias registry (plaintext SSH credentials) - bind-mount from the host.
+    # Writable so the admin UI can save new aliases.
     # Keep real credentials out of git; create data/ssh_aliases.json from the sample.
     volumes:
-      - ./data:/data:ro
+      - ./data:/data
 
     environment:
       # Values are interpolated from the shell environment or a .env file
