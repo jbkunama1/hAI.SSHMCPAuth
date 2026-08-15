@@ -165,9 +165,16 @@ function forward(req, res, modifiedBody, onResponse) {
         proxyRes.on("data", (c) => chunks.push(c));
         proxyRes.on("end", () => {
           const patched = onResponse(Buffer.concat(chunks).toString("utf8"));
-          res.writeHead(proxyRes.statusCode || 500, proxyRes.headers);
-          res.end(patched);
-        });
+                  // The patched body differs in length from the upstream response, so
+                  // the original Content-Length would silently truncate it (or abort
+                  // the connection) and clients would fail with JSON parse errors.
+                  // Recompute it for the modified payload.
+                  res.writeHead(proxyRes.statusCode || 500, {
+                    ...proxyRes.headers,
+                    "content-length": Buffer.byteLength(patched),
+                  });
+                  res.end(patched);
+                });
       } else {
         res.writeHead(proxyRes.statusCode || 500, proxyRes.headers);
         proxyRes.pipe(res, { end: true });

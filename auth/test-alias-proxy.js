@@ -19,16 +19,20 @@ const mock = http.createServer((req, res) => {
   req.on("end", () => {
     const msg = JSON.parse(body);
     if (msg.method === "tools/list") {
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(
-        JSON.stringify({
-          jsonrpc: "2.0",
-          id: msg.id,
-          result: { tools: [{ name: "ssh_connect" }] },
-        })
-      );
-      return;
-    }
+          const payload = Buffer.from(
+            JSON.stringify({
+              jsonrpc: "2.0",
+              id: msg.id,
+              result: { tools: [{ name: "ssh_connect" }] },
+            })
+          );
+          res.writeHead(200, {
+            "Content-Type": "application/json",
+            "Content-Length": payload.length,
+          });
+          res.end(payload);
+          return;
+        }
     // echo back the ssh_connect arguments so we can assert rewriting
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(
@@ -151,10 +155,20 @@ async function main() {
       text3
     );
 
-  // 4. tools/list gets ssh_list_aliases appended
+  // 4. tools/list gets ssh_list_aliases appended (and Content-Length stays correct)
   const r4 = await post({ jsonrpc: "2.0", id: 4, method: "tools/list" });
   const names = r4.body.result.tools.map((t) => t.name);
   check("tools/list includes ssh_list_aliases", names.includes("ssh_list_aliases"), names.join(","));
+
+    // 4b. patched response must parse fully even though upstream sent a tight
+    //     Content-Length for the unpatched body
+    const r4b = await post({ jsonrpc: "2.0", id: 4, method: "tools/list" });
+    const namesB = r4b.body.result.tools.map((t) => t.name);
+    check(
+      "patched tools/list body is not truncated",
+      namesB.includes("ssh_connect") && namesB.includes("ssh_list_aliases") && r4b.body.result.tools.length === 2,
+      "tools=" + namesB.join(",")
+    );
 
   // 5. bad auth -> 401
   const r5 = await new Promise((resolve, reject) => {
