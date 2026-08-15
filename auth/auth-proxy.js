@@ -205,6 +205,18 @@ function isAuthorized(authHeader) {
 }
 
 const server = http.createServer((req, res) => {
+  // Respond to OPTIONS requests directly to prevent them from hitting the
+  // upstream MCP server (which may not support them or crash on non-post paths).
+  if (req.method === "OPTIONS") {
+    res.writeHead(204, {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+      "Access-Control-Allow-Headers": "Authorization, Content-Type",
+    });
+    res.end();
+    return;
+  }
+
   if (!isAuthorized(req.headers["authorization"])) {
     res.writeHead(401, { "Content-Type": "text/plain" });
     res.end("Unauthorized");

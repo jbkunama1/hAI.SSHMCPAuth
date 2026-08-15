@@ -223,6 +223,21 @@ async function main() {
   // 7. client post to /mcp should arrive at upstream / (TARGET_PATH)
   check("client POST to /mcp arrives at upstream TARGET_PATH", lastUpstreamPath === "/");
 
+    // 8. OPTIONS is answered directly with 204 + CORS, never forwarded upstream
+    const opts = await new Promise((resolve, reject) => {
+      const req = http.request(
+        { host: "127.0.0.1", port: PROXY_PORT, path: "/mcp", method: "OPTIONS" },
+        (res) => {
+          let b = "";
+          res.on("data", (c) => (b += c));
+          res.on("end", () => resolve({ status: res.statusCode, cors: res.headers["access-control-allow-origin"] }));
+        }
+      );
+      req.on("error", reject);
+      req.end();
+    });
+    check("OPTIONS answered directly with 204 + CORS", opts.status === 204 && opts.cors === "*", "status=" + opts.status);
+
   proxy.kill();
   mock.close();
   fs.rmSync(tmpdir, { recursive: true, force: true });
