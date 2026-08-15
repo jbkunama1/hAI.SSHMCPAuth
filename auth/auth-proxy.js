@@ -9,6 +9,8 @@ const API_KEY = process.env.SSHMCP_API_KEY;
 const TARGET_HOST = process.env.SSHMCP_TARGET_HOST || "sshmcp-core";
 const TARGET_PORT = parseInt(process.env.SSHMCP_TARGET_PORT || "8000", 10);
 const LISTEN_PORT = parseInt(process.env.SSHMCP_LISTEN_PORT || "8822", 10);
+const ADMIN_PORT = parseInt(process.env.SSHMCP_ADMIN_PORT || "8825", 10);
+const ADMIN_PASSWORD = process.env.SSHMCP_ADMIN_PASSWORD || "";
 const ALIASES_FILE =
   process.env.SSHMCP_ALIASES_FILE ||
   path.join(__dirname, "data", "ssh_aliases.json");
@@ -222,8 +224,22 @@ const server = http.createServer((req, res) => {
   });
 });
 
+// Auth check is per-request; aliases are loaded from file fresh on each read.
+// The admin server mutates the file and calls onReload (loadAliases) to keep
+// the in-memory registry in sync.
+
 server.listen(LISTEN_PORT, () => {
   console.log(
     `Auth proxy listening on port ${LISTEN_PORT}, forwarding to ${TARGET_HOST}:${TARGET_PORT}`
   );
+});
+
+// Admin server (UI + REST API for the alias registry) on its own port.
+// Disabled when SSHMCP_ADMIN_PASSWORD is empty.
+const { startAdminServer } = require("./admin-server.js");
+startAdminServer({
+  port: ADMIN_PORT,
+  password: ADMIN_PASSWORD,
+  aliasesFile: ALIASES_FILE,
+  onReload: loadAliases, // reload aliases after every admin change so the proxy uses them immediately
 });

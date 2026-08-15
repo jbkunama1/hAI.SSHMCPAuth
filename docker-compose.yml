@@ -33,6 +33,7 @@ services:
 
     ports:
       - "8822:8822"   # external:internal
+      - "8825:8825"   # admin UI / CLI (alias registry)
 
     # Alias registry (plaintext SSH credentials) - bind-mount from the host.
     # Keep real credentials out of git; create data/ssh_aliases.json from the sample.
@@ -52,6 +53,10 @@ services:
 
       # Alias registry file with SSH credentials (plaintext for now)
       SSHMCP_ALIASES_FILE: "/data/ssh_aliases.json"
+
+      # Admin port + password for the alias-management UI / CLI
+      SSHMCP_ADMIN_PORT: "8825"
+      SSHMCP_ADMIN_PASSWORD: "CHANGE_ME_ADMIN"
 
 networks:
   highfishNetwork:

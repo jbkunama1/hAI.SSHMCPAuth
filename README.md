@@ -283,6 +283,36 @@ The auth layer can pre-load up to 20 SSH servers with credentials so you can add
 
 4. List configured aliases with the `ssh_list_aliases` tool. This tool is served by the auth layer directly and never returns passwords or keys.
 
+#### Admin UI and CLI
+
+The auth layer exposes a password-protected admin server on its own port (`8825` by default, `SSHMCP_ADMIN_PORT`) for managing the alias registry at runtime — no file editing needed.
+
+1. Set the admin password:
+
+   ```yaml
+   environment:
+     SSHMCP_ADMIN_PASSWORD: "choose-a-strong-password"
+   ```
+
+   > If `SSHMCP_ADMIN_PASSWORD` is unset or empty the admin server is disabled (the proxy logs a warning and continues).
+
+2. **UI**: open `http://<host>:8825/`, log in with the admin password, and manage aliases from the browser. The login sets an `HttpOnly` cookie; a `X-Admin-Token` header is used by the CLI.
+
+3. **CLI** (runs wherever Node is available, targets the admin REST API):
+
+   ```bash
+   export SSHMCP_ADMIN_BASE="http://localhost:8825"
+   export SSHMCP_ADMIN_PASSWORD="choose-a-strong-password"
+
+   node auth/manage-aliases.mjs list
+   node auth/manage-aliases.mjs add ssh1 --host 10.0.0.11 --port 22 --username your-user --password your-secret
+   node auth/manage-aliases.mjs update ssh1 --port 2222
+   node auth/manage-aliases.mjs get ssh1
+   node auth/manage-aliases.mjs remove ssh1
+   ```
+
+   All commands write through to `SSHMCP_ALIASES_FILE` (atomic), take effect immediately, respect the 20-alias limit, and never print passwords or keys (only `hasPassword` / `hasKeyPath` flags).
+
 Upgrade path: credentials are stored in plaintext for now. The `key_path` field already supports SSH keys, and secrets handling can later be moved to Docker secrets without changing the alias format.
 
 ### GitHub Actions and GHCR
@@ -558,6 +588,36 @@ Die Auth-Schicht kann bis zu 20 SSH-Server mit Zugangsdaten vorbelegen, sodass S
    Der Proxy schreibt `address` zu `host:port` um und fügt die gespeicherten `username`- und `password`/`key_path`-Werte ein.
 
 4. Konfigurierte Aliase mit dem Tool `ssh_list_aliases` auflisten. Dieses Tool wird direkt von der Auth-Schicht bedient und gibt niemals Passwörter oder Schlüssel zurück.
+
+#### Admin-UI und CLI
+
+Die Auth-Schicht stellt einen passwortgeschützten Admin-Server auf einem eigenen Port (`8825` standardmäßig, `SSHMCP_ADMIN_PORT`) bereit, um die Alias-Registrierung zur Laufzeit zu verwalten — ohne Datei-Editierung.
+
+1. Admin-Passwort setzen:
+
+   ```yaml
+   environment:
+     SSHMCP_ADMIN_PASSWORD: "ein-starkes-passwort-waehlen"
+   ```
+
+   > Ist `SSHMCP_ADMIN_PASSWORD` nicht gesetzt oder leer, ist der Admin-Server deaktiviert (der Proxy loggt eine Warnung und läuft weiter).
+
+2. **UI**: `http://<host>:8825/` im Browser öffnen, mit dem Admin-Passwort anmelden und Aliase verwalten. Der Login setzt ein `HttpOnly`-Cookie; für die CLI wird der `X-Admin-Token`-Header verwendet.
+
+3. **CLI** (läuft überall, wo Node verfügbar ist, spricht die Admin-REST-API an):
+
+   ```bash
+   export SSHMCP_ADMIN_BASE="http://localhost:8825"
+   export SSHMCP_ADMIN_PASSWORD="ein-starkes-passwort-waehlen"
+
+   node auth/manage-aliases.mjs list
+   node auth/manage-aliases.mjs add ssh1 --host 10.0.0.11 --port 22 --username dein-benutzer --password dein-geheimnis
+   node auth/manage-aliases.mjs update ssh1 --port 2222
+   node auth/manage-aliases.mjs get ssh1
+   node auth/manage-aliases.mjs remove ssh1
+   ```
+
+   Alle Befehle schreiben atomar in `SSHMCP_ALIASES_FILE`, wirken sofort, respektieren das 20-Alias-Limit und geben niemals Passwörter oder Schlüssel aus (nur `hasPassword`-/`hasKeyPath`-Flags).
 
 Ausbaupfad: Die Zugangsdaten liegen derzeit im Klartext vor. Das Feld `key_path` unterstützt bereits SSH-Keys; die Secret-Verwaltung kann später ohne Formatänderung auf Docker-Secrets umgestellt werden.
 
