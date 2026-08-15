@@ -132,23 +132,26 @@ services:
     networks:
       - highfishNetwork
     ports:
-      - "8822:8822"
-      volumes:
-        - ./data:/data:ro
-      environment:
-        SSHMCP_API_KEY: "CHANGE_ME_WITH_A_LONG_RANDOM_API_KEY"
-        SSHMCP_TARGET_HOST: "sshmcp-core"
-        SSHMCP_TARGET_PORT: "8000"
-        SSHMCP_LISTEN_PORT: "8822"
-        SSHMCP_ALIASES_FILE: "/data/ssh_aliases.json"
+      - "8822:8822"  # external:internal
+      - "8825:8825"  # admin UI / CLI (alias registry)
 
-  networks:
-    highfishNetwork:
-      external: true
-  ```
+    # Alias registry (plaintext SSH credentials) - bind-mount from the host.
+    # Keep real credentials out of git; create data/ssh_aliases.json from the sample.
+    volumes:
+      - ./data:/data:ro
 
-  The external network can be created with:
+    environment:
+      SSHMCP_API_KEY: "CHANGE_ME_WITH_A_LONG_RANDOM_API_KEY"
+      SSHMCP_TARGET_HOST: "sshmcp-core"
+      SSHMCP_TARGET_PORT: "8000"
+      SSHMCP_LISTEN_PORT: "8822"
+      SSHMCP_ALIASES_FILE: "/data/ssh_aliases.json"
+      SSHMCP_ADMIN_PORT: "8825"
+      SSHMCP_ADMIN_PASSWORD: "CHANGE_ME_ADMIN"
 
+networks:
+  highfishNetwork:
+    external: true
 ```bash
 docker network create highfishNetwork
 ```
@@ -176,6 +179,8 @@ The auth container should report that it is listening on port `8822`. The core c
 | `SSHMCP_TARGET_PORT` | no | `8000` | Internal TCP port of the upstream MCP server. |
 | `SSHMCP_LISTEN_PORT` | no | `8822` | Port on which the auth layer listens. |
 | `SSHMCP_ALIASES_FILE` | no | `/usr/src/app/data/ssh_aliases.json` | Path to the JSON alias registry (SSH host, port, username, password/key path). |
+| `SSHMCP_ADMIN_PORT` | no | `8825` | Port of the password-protected admin UI / CLI for managing aliases. |
+| `SSHMCP_ADMIN_PASSWORD` | no | (empty) | Admin password. **Empty disables the admin server.** |
 
 #### `sshmcp-core`
 
@@ -438,23 +443,26 @@ services:
     networks:
       - highfishNetwork
     ports:
-      - "8822:8822"
-        volumes:
-          - ./data:/data:ro
-        environment:
-          SSHMCP_API_KEY: "CHANGE_ME_WITH_A_LONG_RANDOM_API_KEY"
-          SSHMCP_TARGET_HOST: "sshmcp-core"
-          SSHMCP_TARGET_PORT: "8000"
-          SSHMCP_LISTEN_PORT: "8822"
-          SSHMCP_ALIASES_FILE: "/data/ssh_aliases.json"
+      - "8822:8822"  # extern:intern
+      - "8825:8825"  # Admin-UI / CLI (Alias-Verwaltung)
 
-    networks:
-      highfishNetwork:
-        external: true
-    ```
+    # Alias registry (plaintext SSH credentials) - bind-mount from the host.
+    # Keep real credentials out of git; create data/ssh_aliases.json from the sample.
+    volumes:
+      - ./data:/data:ro
 
-    Das externe Netzwerk kann wie folgt angelegt werden:
+    environment:
+      SSHMCP_API_KEY: "CHANGE_ME_WITH_A_LONG_RANDOM_API_KEY"
+      SSHMCP_TARGET_HOST: "sshmcp-core"
+      SSHMCP_TARGET_PORT: "8000"
+      SSHMCP_LISTEN_PORT: "8822"
+      SSHMCP_ALIASES_FILE: "/data/ssh_aliases.json"
+      SSHMCP_ADMIN_PORT: "8825"
+      SSHMCP_ADMIN_PASSWORD: "CHANGE_ME_ADMIN"
 
+networks:
+  highfishNetwork:
+    external: true
 ```bash
 docker network create highfishNetwork
 ```
@@ -482,6 +490,8 @@ Der Auth-Container sollte melden, dass er auf Port `8822` lauscht. Der Core-Cont
 | `SSHMCP_TARGET_PORT` | nein | `8000` | Interner TCP-Port des Upstream-MCP-Servers. |
 | `SSHMCP_LISTEN_PORT` | nein | `8822` | Port, auf dem die Auth-Schicht lauscht. |
 | `SSHMCP_ALIASES_FILE` | nein | `/usr/src/app/data/ssh_aliases.json` | Pfad zur JSON-Alias-Registrierung (SSH-Host, Port, Benutzername, Passwort/Key-Pfad). |
+| `SSHMCP_ADMIN_PORT` | nein | `8825` | Port der passwortgeschützten Admin-UI / CLI zur Alias-Verwaltung. |
+| `SSHMCP_ADMIN_PASSWORD` | nein | (leer) | Admin-Passwort. **Leer deaktiviert den Admin-Server.** |
 
 #### `sshmcp-core`
 
