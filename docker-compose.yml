@@ -22,9 +22,9 @@ services:
       RUST_LOG: "info"
       MCP_PORT: "8000"
 
-  # Auth layer: Node.js HTTP proxy enforcing API key, exposing port 8822
+  # Auth layer: Node.js API-key auth proxy from GHCR, exposing port 8822
   sshmcp-auth:
-    image: node:18-alpine
+    image: ghcr.io/jbkunama1/hai.sshmcpauth:latest
     container_name: sshmcp-auth
     restart: unless-stopped
 
@@ -34,12 +34,9 @@ services:
     ports:
       - "8822:8822"   # external:internal
 
-    volumes:
-      - /home/sshmcp/auth:/auth:ro
-
     environment:
       # Strong API key, set to your own random value
-      SSHMCP_API_KEY: "DEIN_STARKER_API_KEY"
+      SSHMCP_API_KEY: "CHANGE_ME_WITH_A_LONG_RANDOM_API_KEY"
 
       # Target MCP server inside the network
       SSHMCP_TARGET_HOST: "sshmcp-core"
@@ -47,8 +44,6 @@ services:
 
       # Port on which the auth proxy listens inside the container
       SSHMCP_LISTEN_PORT: "8822"
-
-    command: ["node", "/auth/auth-proxy.js"]
 
 networks:
   highfishNetwork:
