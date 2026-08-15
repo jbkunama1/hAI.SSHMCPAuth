@@ -141,13 +141,15 @@ services:
       - ./data:/data:ro
 
     environment:
-      SSHMCP_API_KEY: "CHANGE_ME_WITH_A_LONG_RANDOM_API_KEY"
-      SSHMCP_TARGET_HOST: "sshmcp-core"
-      SSHMCP_TARGET_PORT: "8000"
-      SSHMCP_LISTEN_PORT: "8822"
-      SSHMCP_ALIASES_FILE: "/data/ssh_aliases.json"
-      SSHMCP_ADMIN_PORT: "8825"
-      SSHMCP_ADMIN_PASSWORD: "CHANGE_ME_ADMIN"
+          # Values are interpolated from the host environment or a .env file
+          # next to this compose file (see .env.example).
+          SSHMCP_API_KEY: "${SSHMCP_API_KEY:-CHANGE_ME_WITH_A_LONG_RANDOM_API_KEY}"
+          SSHMCP_TARGET_HOST: "${SSHMCP_TARGET_HOST:-sshmcp-core}"
+          SSHMCP_TARGET_PORT: "${SSHMCP_TARGET_PORT:-8000}"
+          SSHMCP_LISTEN_PORT: "${SSHMCP_LISTEN_PORT:-8822}"
+          SSHMCP_ALIASES_FILE: "${SSHMCP_ALIASES_FILE:-/data/ssh_aliases.json}"
+          SSHMCP_ADMIN_PORT: "${SSHMCP_ADMIN_PORT:-8825}"
+          SSHMCP_ADMIN_PASSWORD: "${SSHMCP_ADMIN_PASSWORD:-CHANGE_ME_ADMIN}"
 
 networks:
   highfishNetwork:
@@ -157,6 +159,8 @@ docker network create highfishNetwork
 ```
 
 > **Warning:** `CHANGE_ME_WITH_A_LONG_RANDOM_API_KEY` must be replaced with a long, random API key and must never be committed to GitHub.
+
+> **Tip:** Instead of editing the compose file, set these values in a `.env` file next to `docker-compose.yml` (copy `.env.example` to `.env`). Docker Compose reads `.env` automatically and interpolates the `${VAR}` references above. `.env` is excluded from git.
 
 ### Check the containers
 
@@ -452,13 +456,15 @@ services:
       - ./data:/data:ro
 
     environment:
-      SSHMCP_API_KEY: "CHANGE_ME_WITH_A_LONG_RANDOM_API_KEY"
-      SSHMCP_TARGET_HOST: "sshmcp-core"
-      SSHMCP_TARGET_PORT: "8000"
-      SSHMCP_LISTEN_PORT: "8822"
-      SSHMCP_ALIASES_FILE: "/data/ssh_aliases.json"
-      SSHMCP_ADMIN_PORT: "8825"
-      SSHMCP_ADMIN_PASSWORD: "CHANGE_ME_ADMIN"
+          # Werte werden aus der Host-Umgebung oder einer .env-Datei neben dieser
+          # Compose-Datei interpoliert (siehe .env.example).
+          SSHMCP_API_KEY: "${SSHMCP_API_KEY:-CHANGE_ME_WITH_A_LONG_RANDOM_API_KEY}"
+          SSHMCP_TARGET_HOST: "${SSHMCP_TARGET_HOST:-sshmcp-core}"
+          SSHMCP_TARGET_PORT: "${SSHMCP_TARGET_PORT:-8000}"
+          SSHMCP_LISTEN_PORT: "${SSHMCP_LISTEN_PORT:-8822}"
+          SSHMCP_ALIASES_FILE: "${SSHMCP_ALIASES_FILE:-/data/ssh_aliases.json}"
+          SSHMCP_ADMIN_PORT: "${SSHMCP_ADMIN_PORT:-8825}"
+          SSHMCP_ADMIN_PASSWORD: "${SSHMCP_ADMIN_PASSWORD:-CHANGE_ME_ADMIN}"
 
 networks:
   highfishNetwork:
@@ -468,6 +474,8 @@ docker network create highfishNetwork
 ```
 
 > **Warnung:** `CHANGE_ME_WITH_A_LONG_RANDOM_API_KEY` muss durch einen langen, zufälligen API-Key ersetzt werden und darf niemals auf GitHub committet werden.
+
+> **Tipp:** Statt die Compose-Datei zu bearbeiten, die Werte in eine `.env`-Datei neben `docker-compose.yml` legen (`.env.example` nach `.env` kopieren). Docker Compose liest `.env` automatisch und interpoliert die `${VAR}`-Referenzen oben. `.env` ist von git ausgeschlossen.
 
 ### Container prüfen
 

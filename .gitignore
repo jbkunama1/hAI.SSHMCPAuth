@@ -1,0 +1,5 @@
+# Never commit real secrets
+.env
+
+# Local build artifacts
+node_modules/
