@@ -8,6 +8,7 @@ This repo provides:
   - `sshmcp-core`: the original `mingyang91/ssh-mcp` MCP SSH server
   - `sshmcp-auth`: a lightweight Node.js HTTP proxy that enforces an API key before forwarding to `sshmcp-core`
 - A small `auth-proxy.js` implementation that checks `Authorization: Bearer <API_KEY>` and only then proxies the request to the MCP server
+- A Docker image for the auth proxy, built and published via GitHub Actions to GitHub Container Registry (`ghcr.io/<owner>/hai.sshmcpauth:latest`)
 
 The goal: allow AI agents (Claude, ChatGPT, Copilot, AnythingMCP, etc.) to reach your LAN via MCP+SSH, while enforcing an application-level API key directly in the container stack.
 
@@ -34,8 +35,10 @@ All components run inside one Docker stack; no external reverse proxy is require
 
 - `docker-compose.yml` — the stack definition
 - `auth/auth-proxy.js` — Node.js HTTP auth/proxy layer
+- `Dockerfile` — container definition for the auth proxy
+- `.github/workflows/docker-image.yml` — GitHub Actions workflow to build/push the image
 
-## Installation
+## Installation (Stack-Variante)
 
 ### 1. Clone the repo
 
@@ -145,6 +148,57 @@ Once connected, your agent can call the MCP tools exposed by `ssh-mcp`, such as:
 - `ssh_upload` / `ssh_download` — transfer files
 
 Refer to the upstream `ssh-mcp` documentation for the exact tool names and parameters.
+
+## Docker-Image-Variante (GitHub Actions)
+
+Statt den Auth-Layer aus `node:18-alpine` + Volume aufzubauen, kannst du das vorbereitete Docker-Image nutzen.
+
+### 1. GitHub Actions Workflow
+
+Der Workflow `.github/workflows/docker-image.yml`:
+
+- läuft bei Push auf `main` oder manuellem Trigger
+- baut das Image aus `Dockerfile`
+- pusht es nach GitHub Container Registry unter:
+  - `ghcr.io/<owner>/hai.sshmcpauth:latest`
+
+### 2. Image lokal nutzen
+
+Nach dem ersten erfolgreichen Build:
+
+```bash
+docker pull ghcr.io/jbkunama1/hai.sshmcpauth:latest
+
+docker run -d \
+  --name sshmcp-auth \
+  --network highfishNetwork \
+  -e SSHMCP_API_KEY="DEIN_STARKER_API_KEY" \
+  -e SSHMCP_TARGET_HOST="sshmcp-core" \
+  -e SSHMCP_TARGET_PORT="8000" \
+  -e SSHMCP_LISTEN_PORT="8822" \
+  -p 8822:8822 \
+  ghcr.io/jbkunama1/hai.sshmcpauth:latest
+```
+
+In deiner Compose-Datei kannst du den Service `sshmcp-auth` alternativ so definieren:
+
+```yaml
+  sshmcp-auth:
+    image: ghcr.io/jbkunama1/hai.sshmcpauth:latest
+    container_name: sshmcp-auth
+    restart: unless-stopped
+    networks:
+      - highfishNetwork
+    ports:
+      - "8822:8822"
+    environment:
+      SSHMCP_API_KEY: "DEIN_STARKER_API_KEY"
+      SSHMCP_TARGET_HOST: "sshmcp-core"
+      SSHMCP_TARGET_PORT: "8000"
+      SSHMCP_LISTEN_PORT: "8822"
+```
+
+Damit brauchst du das Volume `/home/sshmcp/auth` nicht mehr – das Skript ist bereits im Image enthalten.
 
 ## Security Notes
 
