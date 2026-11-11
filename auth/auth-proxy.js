@@ -125,17 +125,39 @@ function respondDirect(msg, res) {
   res.end(body);
 }
 
-// Append ssh_list_aliases to a tools/list response if it is missing.
-function patchToolsList(raw) {
-  try {
-    const parsed = JSON.parse(raw);
-    const messages = Array.isArray(parsed) ? parsed : [parsed];
-    for (const m of messages) {
-      const tools = m && m.result && Array.isArray(m.result.tools) ? m.result.tools : null;
-      if (tools && !tools.some((t) => t && t.name === "ssh_list_aliases")) {
-        tools.push(aliasToolDefinition());
-      }
+// Append ssh_list_aliases to every tools/list result in a parsed JSON-RPC payload.
+function patchToolsInPayload(parsed) {
+  const messages = Array.isArray(parsed) ? parsed : [parsed];
+  for (const m of messages) {
+    const tools = m && m.result && Array.isArray(m.result.tools) ? m.result.tools : null;
+    if (tools && !tools.some((t) => t && t.name === "ssh_list_aliases")) {
+      tools.push(aliasToolDefinition());
     }
+  }
+}
+
+// Handles both plain JSON and SSE (text/event-stream, "data: {...}" lines).
+function patchToolsList(raw, contentType) {
+  try {
+    if (/text\/event-stream/i.test(contentType || "")) {
+      return raw
+        .split(/(\r?\n)/) // keep line separators as separate parts
+        .map((part) => {
+          if (!part.startsWith("data:")) return part;
+          const json = part.slice(5).trim();
+          if (!json) return part;
+          try {
+            const parsed = JSON.parse(json);
+            patchToolsInPayload(parsed);
+            return "data: " + JSON.stringify(parsed);
+          } catch {
+            return part; // not JSON (e.g. keep-alive) – leave untouched
+          }
+        })
+        .join("");
+    }
+    const parsed = JSON.parse(raw);
+    patchToolsInPayload(parsed);
     return JSON.stringify(parsed);
   } catch {
     return raw;
@@ -145,6 +167,8 @@ function patchToolsList(raw) {
 function forward(req, res, modifiedBody, onResponse) {
   const headers = { ...req.headers };
   delete headers["content-length"];
+  // When the body is patched we need it uncompressed.
+  if (onResponse) delete headers["accept-encoding"];
 
   // Map the client's URL onto the upstream endpoint: host is fixed, but the
   // path is the upstream TARGET_PATH so clients can use /mcp while the core
@@ -165,17 +189,19 @@ function forward(req, res, modifiedBody, onResponse) {
         const chunks = [];
         proxyRes.on("data", (c) => chunks.push(c));
         proxyRes.on("end", () => {
-          const patched = onResponse(Buffer.concat(chunks).toString("utf8"));
-                  // The patched body differs in length from the upstream response, so
-                  // the original Content-Length would silently truncate it (or abort
-                  // the connection) and clients would fail with JSON parse errors.
-                  // Recompute it for the modified payload.
-                  res.writeHead(proxyRes.statusCode || 500, {
-                    ...proxyRes.headers,
-                    "content-length": Buffer.byteLength(patched),
-                  });
-                  res.end(patched);
-                });
+          const patched = onResponse(
+            Buffer.concat(chunks).toString("utf8"),
+            proxyRes.headers["content-type"]
+          );
+          // The patched body differs in length from the upstream response, so
+          // recompute Content-Length, and never send it together with chunked
+          // Transfer-Encoding (invalid HTTP).
+          const outHeaders = { ...proxyRes.headers };
+          delete outHeaders["transfer-encoding"];
+          outHeaders["content-length"] = Buffer.byteLength(patched);
+          res.writeHead(proxyRes.statusCode || 500, outHeaders);
+          res.end(patched);
+        });
       } else {
         res.writeHead(proxyRes.statusCode || 500, proxyRes.headers);
         proxyRes.pipe(res, { end: true });
